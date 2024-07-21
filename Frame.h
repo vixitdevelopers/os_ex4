@@ -9,39 +9,53 @@
 
 class Frame
 {
-  word_t frame;
-  uint64_t page;
-  uint64_t cyclical_distance;
-  uint64_t parent_address;
+  word_t index;
+  uint64_t pageNumber;
+  uint64_t dist_from_other_cyc;
+  uint64_t parent;
 
  public:
   Frame (word_t myframe, uint64_t myPage, uint64_t my_cyclical_distance, uint64_t my_parent_address)
-      : frame (myframe), page (myPage), cyclical_distance (my_cyclical_distance), parent_address (my_parent_address)
+      : index (myframe), pageNumber (myPage), dist_from_other_cyc (my_cyclical_distance), parent (my_parent_address)
   {}
-  Frame()
-      : frame (0), page (0), cyclical_distance (0), parent_address (0)
+  Frame ()
+      : index (0), pageNumber (0), dist_from_other_cyc (0), parent (0)
   {}
-  word_t get_frame () const
-  { return frame; }
-  void set_frame (word_t myframe)
-  { frame = myframe; }
-  uint64_t get_page () const
-  { return page; }
-  void set_page (uint64_t myPage)
-  { page = myPage; }
-  uint64_t get_cyclical_distance () const
+  word_t get_index () const
+  { return index; }
+  void set_index (word_t myframe)
+  { index = myframe; }
+  uint64_t get_page_num () const
+  { return pageNumber; }
+  void set_page_num (uint64_t myPage)
+  { pageNumber = myPage; }
+  uint64_t get_dist_from_other_cyc () const
   {
-    return cyclical_distance;
+    return dist_from_other_cyc;
   }
-  void set_cyclical_distance (uint64_t my_cyclical_distance)
-  { cyclical_distance = my_cyclical_distance; }
+  void set_dist_from_other_cyc (uint64_t my_cyclical_distance)
+  { dist_from_other_cyc = my_cyclical_distance; }
   uint64_t get_parent_address () const
   {
-    return parent_address;
+    return parent;
   }
   void set_parent_address (uint64_t my_parent_address)
   {
-    parent_address = my_parent_address;
+    parent = my_parent_address;
+  }
+  bool isValid ()
+  {
+    return index != 0;
+  }
+  uint64_t getEntryAdress (uint64_t row) const
+  {
+    return index * PAGE_SIZE + row;
+  }
+  void setFrameByPhysical (uint64_t entry_address)
+  {
+    word_t curr;
+    PMread (entry_address, &curr);
+    set_index (curr);
   }
 };
 
