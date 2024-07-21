@@ -18,6 +18,9 @@ class Frame
   Frame (word_t myframe, uint64_t myPage, uint64_t my_cyclical_distance, uint64_t my_parent_address)
       : frame (myframe), page (myPage), cyclical_distance (my_cyclical_distance), parent_address (my_parent_address)
   {}
+  Frame()
+      : frame (0), page (0), cyclical_distance (0), parent_address (0)
+  {}
   word_t get_frame () const
   { return frame; }
   void set_frame (word_t myframe)

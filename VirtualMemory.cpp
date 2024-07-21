@@ -6,12 +6,13 @@
 #define SUCCESS 1
 #define FAILURE 0
 #define FRAME_INDEX(frame, i) ((frame) * PAGE_SIZE + (i))
+#define NO_FRAME_VALUE 0
 
-word_t search_empty_frame (word_t frame, int level, word_t *max_frame_index)
+Frame search_empty_frame (word_t frame, int level, word_t *max_frame_index)
 {
   if (level == TABLES_DEPTH)
   {
-    return 0;
+    return Frame (); // return a default Frame instance
   }
 
   bool is_empty = true;
@@ -28,10 +29,10 @@ word_t search_empty_frame (word_t frame, int level, word_t *max_frame_index)
       is_empty = false;
       if (value != frame)
       {
-        word_t k = search_empty_frame (value, level + 1, max_frame_index);
-        if (k != 0)
+        Frame k = search_empty_frame (value, level + 1, max_frame_index);
+        if (k.get_frame () != 0)
         {
-          if (k == value)
+          if (k.get_frame () == value)
           {
             PMwrite (FRAME_INDEX(frame, i), 0);
           }
@@ -42,11 +43,11 @@ word_t search_empty_frame (word_t frame, int level, word_t *max_frame_index)
   }
   if (is_empty)
   {
-    return frame;
+    return Frame (frame, 0, 0, 0); // return a Frame instance with the found frame
   }
   else
   {
-    return 0;
+    return Frame (); // return a default Frame instance
   }
 }
 
@@ -101,49 +102,53 @@ uint64_t getPhysicalAddress (uint64_t virtualAddress)
   uint64_t page_number = getPageNum (virtualAddress);
 
   // Start with the root page table in frame 0
-  word_t frame = 0;
+//  word_t frame = 0;
+
+  Frame frame = Frame ();
 
   // Traverse the page tables
   for (int level = TABLES_DEPTH; level > 0; --level)
   {
     uint64_t row_number = extractBitsAtLevel (virtualAddress, level);
-    uint64_t entry_address = FRAME_INDEX(frame, row_number);
-    word_t prev_frame = frame;
-    PMread (entry_address, &frame);
-
-    // If the frame index is 0, it means a page fault occurred
-    if (frame == 0)
+    uint64_t entry_address = FRAME_INDEX(frame.get_frame (), row_number);
+    word_t previousFrame = frame.get_frame ();
+    word_t curr;
+    PMread (entry_address, &curr);
+    frame.set_frame (curr);
+    if (frame.get_frame () == NO_FRAME_VALUE)
     {
-      PMwrite (entry_address, prev_frame);
+      PMwrite (entry_address, previousFrame);
       word_t max_frame_index = 0;
-      word_t empty_frame = search_empty_frame (0, 0, &max_frame_index);
-      if (empty_frame == 0)
+
+//      word_t empty_frame = search_empty_frame (0, 0, &max_frame_index);
+      Frame empty_frame = search_empty_frame (0, 0, &max_frame_index);
+      if (empty_frame.get_frame () == 0)
       {
-        empty_frame = max_frame_index + 1;
+        empty_frame.set_frame (max_frame_index + 1);
       }
-      if (empty_frame >= NUM_FRAMES)
+      if (empty_frame.get_frame () >= NUM_FRAMES)
       {
         Frame info = swap_out_frame (0, 0, page_number, 0, 0);
         PMevict (info.get_frame (), info.get_page ());
         PMwrite (info.get_parent_address (), 0);
-        empty_frame = info.get_frame ();
+        empty_frame.set_frame (info.get_frame ());
       }
-      PMwrite (entry_address, empty_frame);
+      PMwrite (entry_address, empty_frame.get_frame ());
       frame = empty_frame;
       if (level == 1)
       {
-        PMrestore (frame, page_number);
+        PMrestore (frame.get_frame (), page_number);
       }
       else
       {
         for (int i = 0; i < PAGE_SIZE; i++)
         {
-          PMwrite (FRAME_INDEX(frame, i), 0);
+          PMwrite (FRAME_INDEX(frame.get_frame (), i), 0);
         }
       }
     }
   }
-  return FRAME_INDEX(frame, offset);
+  return FRAME_INDEX(frame.get_frame (), offset);
 }
 
 int VMread (uint64_t virtualAddress, word_t *value)
