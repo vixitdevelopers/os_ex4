@@ -50,39 +50,43 @@ Frame search_empty_frame (word_t frameNum, int depth, word_t *maxFrameNumber)
   }
 }
 
+Frame handleBaseCase(word_t frame, uint64_t current_page, uint64_t page_swapped_in, uint64_t parent_frame)
+{
+  uint64_t adjusted_cur_page = current_page / PAGE_SIZE;
+  uint64_t diff = absolute_diff(page_swapped_in, adjusted_cur_page);
+  uint64_t dist_from_other_cyc = min(diff, NUM_PAGES - diff);
+  return Frame(frame, adjusted_cur_page, dist_from_other_cyc, parent_frame);
+}
+
 Frame evictFrameToSwap (word_t frame, int level, uint64_t page_swapped_in,
                         uint64_t cur_page, uint64_t parent)
 {
   if (level == TABLES_DEPTH)
   {
-    cur_page = cur_page / PAGE_SIZE;
-    uint64_t diff = absolute_diff (page_swapped_in, cur_page);
-    uint64_t dist_from_other_cyc = min (diff, NUM_PAGES - diff);
-    return *new Frame (frame, cur_page, dist_from_other_cyc, parent);
+    return handleBaseCase(frame, cur_page, page_swapped_in, parent);
   }
-  Frame next = Frame (0, 0, 0, 0);
-  for (uint64_t i = 0; i < PAGE_SIZE; i++)
+
+  Frame next_frame = Frame (0, 0, 0, 0);
+  for (uint64_t row = 0; row < PAGE_SIZE; row++)
   {
-    word_t value;
-    PMread (FRAME_INDEX(frame, i), &value);
-    if (value != 0)
+    word_t val;
+    PMread (FRAME_INDEX(frame, row), &val);
+    if (!(val == 0 || val == frame))
     {
-      if (value != frame)
+      uint64_t new_page = setBitsAtLevel (cur_page, row, level);
+      Frame new_info = evictFrameToSwap (val, level + 1,
+                                         page_swapped_in, new_page,
+                                         FRAME_INDEX(frame, row));
+      bool is_valid = new_info.isValid ()
+                      && new_info.get_dist_from_other_cyc () > next_frame
+                          .get_dist_from_other_cyc ();
+      if (is_valid)
       {
-        uint64_t new_page = setBitsAtLevel (cur_page, i, level);
-        Frame new_info = evictFrameToSwap (value, level + 1,
-                                           page_swapped_in, new_page,
-                                           FRAME_INDEX(frame, i));
-        if (new_info.isValid ()
-            && new_info.get_dist_from_other_cyc () > next
-                .get_dist_from_other_cyc ())
-        {
-          next = new_info;
-        }
+        next_frame = new_info;
       }
     }
   }
-  return next;
+  return next_frame;
 }
 
 void VMinitialize ()
